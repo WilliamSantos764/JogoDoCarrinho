@@ -53,7 +53,10 @@ while running:
             running = False
 
     keys = pygame.key.get_pressed()
-    velocidade = velocidade_correndo if keys[pygame.K_LSHIFT] else velocidade_normal
+    if atacando:
+        velocidade = velocidade_normal // 2  # reduz a velocidade pela metade durante o ataque
+    else:
+        velocidade = velocidade_correndo if keys[pygame.K_LSHIFT] else velocidade_normal
 
     movendo = False
     if keys[pygame.K_LEFT]:
@@ -76,6 +79,7 @@ while running:
         ataque_timer = 0
 
     # Executar animação de ataque
+    # Executar animação de ataque enquanto anda
     if atacando:
         ataque_timer += 1
         if ataque_timer >= ataque_intervalo:
@@ -84,7 +88,13 @@ while running:
             if ataque_index >= len(ataque_frames):
                 ataque_index = 0
                 atacando = False
+
+        # Continua se movendo e desenha ataque
+        player.x += (-velocidade if keys[pygame.K_LEFT] else velocidade if keys[pygame.K_RIGHT] else 0)
+        player.y += (-velocidade if keys[pygame.K_UP] else velocidade if keys[pygame.K_DOWN] else 0)
+
         screen.blit(ataque_frames[ataque_index], (player.x, player.y))
+
     else:
         # Escolher frames de acordo com velocidade
         frames_atuais = correr_frames if velocidade == velocidade_correndo else andar_frames
