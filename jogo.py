@@ -158,6 +158,8 @@ def reiniciar_jogo():
     frame_timer = 0
     insetos = [InsetoVoador(random.randint(800, 1200)) for _ in range(5)]
     estado_jogo = "menu"
+    direcao_ataque = "frente"  # "frente" ou "cima"
+
 
 reiniciar_jogo()  # Inicializa
 
@@ -247,10 +249,18 @@ while running:
                 player.x += velocidade
                 movendo = True
             player.y = ALTURA_CHAO
-            if keys[pygame.K_a] and not atacando:
-                atacando = True
-                ataque_index = 0
-                ataque_timer = 0
+            if not atacando:
+                if keys[pygame.K_a]:
+                    atacando = True
+                    ataque_index = 0
+                    ataque_timer = 0
+                    direcao_ataque = "frente"
+                elif keys[pygame.K_w]:
+                    atacando = True
+                    ataque_index = 0
+                    ataque_timer = 0
+                    direcao_ataque = "cima"
+
             if atacando:
                 ataque_timer += 1
                 if ataque_timer >= ataque_intervalo:
@@ -258,8 +268,15 @@ while running:
                     ataque_timer = 0
 
                     # Aplica dano aos insetos no momento do ataque
+                    # Cria a área de ataque com base na direção
+                    if direcao_ataque == "frente":
+                        ataque_area = pygame.Rect(player.x + 50, player.y, 40, 50)
+                    elif direcao_ataque == "cima":
+                        ataque_area = pygame.Rect(player.x, player.y - 40, 50, 40)
+
+                    # Aplica dano se o inseto estiver na área de ataque
                     for inseto in insetos:
-                        if not inseto.morrendo and not inseto.caindo and player.colliderect(inseto.rect):
+                        if not inseto.morrendo and not inseto.caindo and ataque_area.colliderect(inseto.rect):
                             inseto.morrer()
 
                     if ataque_index >= len(ataque_frames):
