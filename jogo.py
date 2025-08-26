@@ -3,6 +3,8 @@ import sys
 import os
 import random
 
+estado_jogo = "menu"  # "menu", "jogando", "morto"
+
 # Inicialização
 pygame.init()
 screen = pygame.display.set_mode((800, 600))
@@ -17,22 +19,20 @@ caminho_personagem = os.path.join(caminho_base, "assets", "personagem")
 caminho_inimigo = os.path.join(caminho_base, "assets", "inimigo")
 caminho_faca = os.path.join(caminho_base, "assets", "faca", "faca.png")
 
-# Função para carregar frames
-def carregar_frames(pasta, prefixo, quantidade, usar_zeros=False, tamanho=None, iniciar_em=1):
-    frames = []
-    for i in range(iniciar_em, iniciar_em + quantidade):
-        nome = f"{prefixo}{str(i).zfill(3) if usar_zeros else i}.png"
-        caminho = os.path.join(pasta, nome)
-        try:
-            img = pygame.image.load(caminho).convert_alpha()
-            if tamanho:
-                img = pygame.transform.smoothscale(img, tamanho)
-            frames.append(img)
-        except FileNotFoundError:
-            print(f"Arquivo não encontrado: {caminho}")
-    return frames
 
-# Carregando fundos e assets
+def desenhar_menu():
+    screen.fill((0, 0, 0))
+    texto = font.render("New Game - Pressione ENTER", True, (255, 255, 255))
+    screen.blit(texto, (250, 280))
+
+
+def desenhar_restart():
+    screen.fill((0, 0, 0))
+    texto = font.render("Você morreu! Pressione R para reiniciar", True, (255, 0, 0))
+    screen.blit(texto, (200, 280))
+
+
+# Fundo
 try:
     fundo_original = pygame.image.load(caminho_fundo).convert()
     fundo = pygame.transform.scale(fundo_original, (800, 600))
@@ -41,6 +41,7 @@ except:
     fundo = pygame.Surface((800, 600))
     fundo.fill((0, 0, 0))
 
+# Faca
 try:
     imagem_faca = pygame.image.load(caminho_faca).convert_alpha()
     imagem_faca = pygame.transform.scale(imagem_faca, (40, 10))
@@ -49,24 +50,44 @@ except:
     imagem_faca = pygame.Surface((40, 10))
     imagem_faca.fill((255, 255, 0))
 
-# Animações personagem
+
+# Função para carregar frames
+def carregar_frames(pasta, prefixo, quantidade, usar_zeros=False, tamanho=None, iniciar_em=1):
+    frames = []
+    for i in range(iniciar_em, iniciar_em + quantidade):
+        nome = f"{prefixo}{str(i).zfill(3) if usar_zeros else i}.png"
+        caminho = os.path.join(pasta, nome)
+        try:
+            img = pygame.image.load(caminho).convert_alpha()
+            if tamanho: img = pygame.transform.smoothscale(img, tamanho)
+            frames.append(img)
+        except FileNotFoundError:
+            print(f"Arquivo não encontrado: {caminho}")
+    return frames
+
+
+# Animações do personagem
 andar_frames = carregar_frames(caminho_personagem, "andar", 8, iniciar_em=1)
 correr_frames = carregar_frames(caminho_personagem, "correr", 8, iniciar_em=1)
 ataque_frames = carregar_frames(caminho_personagem, "ataque", 7, iniciar_em=1)
 morte_frames = carregar_frames(caminho_personagem, "morte", 3, iniciar_em=1)
 pulo_frames = carregar_frames(caminho_personagem, "pulo", 6, iniciar_em=1)
 
-# Animações inseto
 tamanho_inseto = (50, 50)
-voar_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Fly_", 18, usar_zeros=True, tamanho=tamanho_inseto, iniciar_em=0)
-ataque_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Attack_", 17, usar_zeros=True, tamanho=tamanho_inseto, iniciar_em=0)
-morte_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Dying_", 17, usar_zeros=True, tamanho=tamanho_inseto, iniciar_em=0)
-queda_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Fall_", 17, usar_zeros=True, tamanho=tamanho_inseto, iniciar_em=0)
+voar_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Fly_", 18, usar_zeros=True, tamanho=tamanho_inseto,
+                                     iniciar_em=0)
+ataque_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Attack_", 17, usar_zeros=True,
+                                       tamanho=tamanho_inseto, iniciar_em=0)
+morte_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Dying_", 17, usar_zeros=True, tamanho=tamanho_inseto,
+                                      iniciar_em=0)
+queda_inseto_frames = carregar_frames(caminho_inimigo, "0_Monster_Fall_", 17, usar_zeros=True, tamanho=tamanho_inseto,
+                                      iniciar_em=0)
 
 ALTURA_CHAO = 450
 
+
 class InsetoVoador:
-    def __init__(self, x):
+    def __init__(self, x, vida=1, chefe=False):
         self.rect = pygame.Rect(x, random.randint(300, 450), 50, 50)
         self.velocidade = 2
         self.atacando = False
@@ -75,6 +96,10 @@ class InsetoVoador:
         self.frame_index = 0
         self.frame_timer = 0
         self.frame_interval = 4
+        self.vida = vida
+        self.chefe = chefe
+        if self.chefe:
+            self.rect.inflate_ip(50, 50)  # aumenta o tamanho do chefe
 
     def mover(self, alvo_rect):
         if self.morrendo or self.caindo: return
@@ -108,10 +133,10 @@ class InsetoVoador:
 
     def desenhar(self, tela):
         if self.caindo:
-            idx = min(self.frame_index, len(queda_inseto_frames)-1)
+            idx = min(self.frame_index, len(queda_inseto_frames) - 1)
             tela.blit(queda_inseto_frames[idx], self.rect.topleft)
         elif self.morrendo:
-            idx = min(self.frame_index, len(morte_inseto_frames)-1)
+            idx = min(self.frame_index, len(morte_inseto_frames) - 1)
             tela.blit(morte_inseto_frames[idx], self.rect.topleft)
         elif self.atacando:
             idx = self.frame_index % len(ataque_inseto_frames)
@@ -120,143 +145,136 @@ class InsetoVoador:
             idx = self.frame_index % len(voar_inseto_frames)
             tela.blit(voar_inseto_frames[idx], self.rect.topleft)
 
+    def sofrer_dano(self):
+        if self.chefe:
+            self.vida -= 0.5  # chefe perde menos vida
+        else:
+            self.vida -= 1
+        if self.vida <= 0 and not self.morrendo:
+            self.morrer()
+
     def morrer(self):
         self.morrendo = True
         self.frame_index = 0
         self.frame_timer = 0
         self.velocidade = 0
 
+
 class Faca:
-    def __init__(self, x, y, alvo_x, alvo_y):
+    def __init__(self, x, y, direcao=1, alvo=None):
         self.rect = pygame.Rect(x, y + 25, 40, 10)
-        self.speed = 15
+        self.velocidade = 15 * direcao
         self.viva = True
-        # Calcula vetor direção normalizado para o alvo
-        dx = alvo_x - x
-        dy = alvo_y - y
-        dist = max((dx ** 2 + dy ** 2) ** 0.5, 1)
-        self.vel_x = (dx / dist) * self.speed
-        self.vel_y = (dy / dist) * self.speed
+        self.alvo = alvo
+        if alvo:
+            # Direção vetor normalizado para o alvo
+            dx = alvo[0] - x
+            dy = alvo[1] - y
+            dist = max((dx ** 2 + dy ** 2) ** 0.5, 0.01)
+            self.vel_x = (dx / dist) * 15
+            self.vel_y = (dy / dist) * 15
+        else:
+            self.vel_x = self.velocidade
+            self.vel_y = 0
 
     def mover(self):
-        self.rect.x += int(self.vel_x)
-        self.rect.y += int(self.vel_y)
-        # Remove se sair da tela
+        self.rect.x += self.vel_x
+        self.rect.y += self.vel_y
         if (self.rect.right < 0 or self.rect.left > 800 or
-            self.rect.bottom < 0 or self.rect.top > 600):
+                self.rect.bottom < 0 or self.rect.top > 600):
             self.viva = False
 
     def desenhar(self, tela):
-        # Rotacionar faca na direção do movimento
-        angle = -pygame.math.Vector2(self.vel_x, self.vel_y).angle_to((1, 0))
-        faca_rotacionada = pygame.transform.rotate(imagem_faca, angle)
-        tela.blit(faca_rotacionada, self.rect.topleft)
+        tela.blit(imagem_faca, self.rect.topleft)
+
 
 # Variáveis globais
 player = pygame.Rect(100, ALTURA_CHAO, 50, 50)
 vidas, morrendo = 3, False
 morte_index, morte_timer, atacando = 0, 0, False
 ataque_index, ataque_timer = 0, 0
+direcao_ataque = "frente"
 frame_index, frame_timer = 0, 0
-insetos = [InsetoVoador(random.randint(800, 1200)) for _ in range(5)]
+insetos = []
 facas = []
-direcao = "direita"  # Guarda a direção atual do personagem
 
 # Parâmetros do jogo
 vel_normal, vel_correndo = 5, 10
 frame_interval = 5
 ataque_intervalo = 5
 morte_intervalo = 10
+pulo_intervalo = 5
+pulando, velocidade_pulo, gravidade, vel_vertical = False, -15, 1, 0
+pulo_index, pulo_timer = 0, 0
+max_insetos = 25
+insetos_mortos = 0
+
+direcao_personagem = 1  # 1 = direita, -1 = esquerda
+
 
 def reiniciar_jogo():
     global player, vidas, morrendo, morte_index, morte_timer, atacando, ataque_index, ataque_timer
-    global frame_index, frame_timer, insetos, facas, direcao
+    global frame_index, frame_timer, insetos, facas, estado_jogo, insetos_mortos, direcao_personagem
     player = pygame.Rect(100, ALTURA_CHAO, 50, 50)
     vidas = 3
     morrendo = False
     morte_index = morte_timer = ataque_index = ataque_timer = 0
     atacando = False
     frame_index = frame_timer = 0
-    insetos = [InsetoVoador(random.randint(800, 1200)) for _ in range(5)]
-    facas = []
-    direcao = "direita"
+    insetos.clear()
+    facas.clear()
+    insetos_mortos = 0
+    estado_jogo = "menu"
+    direcao_personagem = 1
 
-def morrer():
-    global morrendo, morte_index, morte_timer, atacando
-    morrendo = True
-    morte_index = morte_timer = 0
-    atacando = False
 
 reiniciar_jogo()
 
-# Funções de desenho de tela
-def desenhar_menu():
-    screen.fill((0, 0, 0))
-    texto = font.render("New Game - Pressione ENTER", True, (255, 255, 255))
-    screen.blit(texto, (250, 280))
 
-def desenhar_restart():
-    screen.fill((0, 0, 0))
-    texto = font.render("Você morreu! Pressione R para reiniciar", True, (255, 0, 0))
-    screen.blit(texto, (200, 280))
+def morrer():
+    global morrendo, morte_index, morte_timer, atacando, estado_jogo
+    morrendo = True
+    morte_index = morte_timer = 0
+    atacando = False
+    estado_jogo = "morto"
 
-# Loop principal
+
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
-        # Mouse click: esquerdo = ataque, direito = lança faca
-        if event.type == pygame.MOUSEBUTTONDOWN and not morrendo:
-            if event.button == 1:  # Botão esquerdo: ataque espada
-                if not atacando:
+        elif estado_jogo == "jogando":
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # clique esquerdo - ataque corpo a corpo
                     atacando = True
-                    ataque_index = 0
-                    ataque_timer = 0
-            elif event.button == 3:  # Botão direito: lança faca para o clique
-                if len(facas) < 5:
+                    ataque_index = ataque_timer = 0
+                elif event.button == 3:  # clique direito - lança faca na posição do mouse
                     mx, my = pygame.mouse.get_pos()
-                    # lança faca da frente do player (ajuste para frente dependendo da direção)
-                    if direcao == "direita":
-                        facas.append(Faca(player.right, player.y, mx, my))
-                    else:
-                        facas.append(Faca(player.left, player.y, mx, my))
+                    direcao_faca = 1 if mx > player.centerx else -1
+                    facas.append(Faca(player.centerx, player.centery, direcao=direcao_faca, alvo=(mx, my)))
 
     keys = pygame.key.get_pressed()
 
-    # Movimentação A (para trás/esquerda) e D (para frente/direita)
-    velocidade = vel_correndo if keys[pygame.K_LSHIFT] else vel_normal
-    movendo = False
-    if not morrendo and not atacando:
-        if keys[pygame.K_a]:
-            player.x -= velocidade
-            direcao = "esquerda"
-            movendo = True
-        if keys[pygame.K_d]:
-            player.x += velocidade
-            direcao = "direita"
-            movendo = True
+    if estado_jogo == "menu":
+        if keys[pygame.K_RETURN]:
+            estado_jogo = "jogando"
+        desenhar_menu()
 
-    # Limite do chão e tela
-    player.y = ALTURA_CHAO
-    if player.x < 0:
-        player.x = 0
-    elif player.x > 750:
-        player.x = 750
+    elif estado_jogo == "morto":
+        desenhar_restart()
+        if keys[pygame.K_r]:
+            reiniciar_jogo()
 
-    if not morrendo:
-        # Atualiza facas
-        for faca in facas[:]:
-            faca.mover()
-            for inseto in insetos:
-                if faca.viva and not inseto.morrendo and not inseto.caindo and faca.rect.colliderect(inseto.rect):
-                    inseto.morrer()
-                    faca.viva = False
-            if not faca.viva:
-                facas.remove(faca)
+    elif estado_jogo == "jogando":
+        # Spawn insetos até maximo 25 vivos
+        while len(insetos) < 5 and (insetos_mortos + len(insetos)) < max_insetos:
+            # Se já matou 24, spawnar o chefe
+            if insetos_mortos == max_insetos - 1:
+                insetos.append(InsetoVoador(random.randint(800, 1200), vida=10, chefe=True))
+            else:
+                insetos.append(InsetoVoador(random.randint(800, 1200)))
 
-        # Atualiza insetos
         insetos_ativos = []
         for inseto in insetos:
             res = inseto.atualizar_animacao()
@@ -270,62 +288,83 @@ while running:
                     if player.colliderect(inseto.rect) and not morrendo and not inseto.morrendo and not inseto.caindo:
                         vidas -= 1
                         inseto.ataque_timer = 0
-                        if vidas <= 0:
-                            morrer()
+                        if vidas <= 0: morrer()
                 insetos_ativos.append(inseto)
+            else:
+                insetos_mortos += 1
         insetos = insetos_ativos
 
-    # Tela fundo
-    screen.blit(fundo, (0, 0))
+        screen.blit(fundo, (0, 0))
 
-    # Ataque corpo a corpo
-    if atacando:
-        ataque_timer += 1
-        if ataque_timer >= ataque_intervalo:
-            ataque_index += 1
-            ataque_timer = 0
-            # Área de ataque (frente ou trás)
-            if direcao == "direita":
-                ataque_area = pygame.Rect(player.right, player.y, 40, 50)
-            else:
-                ataque_area = pygame.Rect(player.left - 40, player.y, 40, 50)
+        # Atualiza e desenha facas
+        for faca in facas[:]:
+            faca.mover()
+            faca.desenhar(screen)
             for inseto in insetos:
-                if not inseto.morrendo and not inseto.caindo and ataque_area.colliderect(inseto.rect):
-                    inseto.morrer()
-            if ataque_index >= len(ataque_frames):
-                atacando = False
-                ataque_index = 0
-        # Renderizar ataque com flip dependendo da direção
-        frame_ataque = ataque_frames[ataque_index]
-        if direcao == "esquerda":
-            frame_ataque = pygame.transform.flip(frame_ataque, True, False)
-        screen.blit(frame_ataque, (player.x, player.y))
-    else:
-        # Animação de movimento ou parado
-        if movendo:
+                if faca.viva and not inseto.morrendo and not inseto.caindo and faca.rect.colliderect(inseto.rect):
+                    inseto.sofrer_dano()  # corrigido o nome do método
+                    faca.viva = False
+            if not faca.viva:
+                facas.remove(faca)
+
+        # Ataque corpo a corpo
+        if atacando:
+            ataque_timer += 1
+            if ataque_timer >= ataque_intervalo:
+                ataque_index += 1
+                ataque_timer = 0
+                # Área de ataque
+                if direcao_personagem == 1:
+                    ataque_area = pygame.Rect(player.right, player.top, 40, player.height)
+                else:
+                    ataque_area = pygame.Rect(player.left - 40, player.top, 40, player.height)
+                for inseto in insetos:
+                    if not inseto.morrendo and not inseto.caindo and ataque_area.colliderect(inseto.rect):
+                        inseto.sofrer_dano()
+                if ataque_index >= len(ataque_frames):
+                    atacando = False
+                    ataque_index = 0
+            frame_atual = ataque_frames[ataque_index]
+            if direcao_personagem == -1:
+                frame_atual = pygame.transform.flip(frame_atual, True, False)
+            screen.blit(frame_atual, player.topleft)
+
+        else:
+            velocidade = vel_correndo if keys[pygame.K_LSHIFT] else vel_normal
+            movendo = False
+            if keys[pygame.K_a]:
+                player.x -= velocidade
+                direcao_personagem = -1
+                movendo = True
+            if keys[pygame.K_d]:
+                player.x += velocidade
+                direcao_personagem = 1
+                movendo = True
+            player.y = ALTURA_CHAO
             frame_timer += 1
             if frame_timer >= frame_interval:
-                frame_index = (frame_index + 1) % len(andar_frames)
                 frame_timer = 0
-        else:
-            frame_index = 0
+                frame_index = (frame_index + 1) % len(andar_frames)
+            frame_atual = andar_frames[frame_index] if movendo else andar_frames[0]
+            if direcao_personagem == -1:
+                frame_atual = pygame.transform.flip(frame_atual, True, False)
+            screen.blit(frame_atual, player.topleft)
 
-        frame_andar = andar_frames[frame_index]
-        if direcao == "esquerda":
-            frame_andar = pygame.transform.flip(frame_andar, True, False)
-        screen.blit(frame_andar, (player.x, player.y))
+        # Vida do jogador
+        vidas_texto = font.render(f"Vidas: {vidas}", True, (255, 255, 255))
+        screen.blit(vidas_texto, (10, 10))
 
-    # Desenhar facas
-    for faca in facas:
-        faca.desenhar(screen)
+        # Insetos
+        for inseto in insetos:
+            inseto.desenhar(screen)
 
-    # Desenhar insetos
-    for inseto in insetos:
-        inseto.desenhar(screen)
-
-    # HUD vidas
-    texto = font.render(f"Vidas: {vidas}", True, (255, 255, 255))
-    screen.blit(texto, (10, 10))
+        if insetos_mortos >= max_insetos:
+            # Vitória
+            texto_vitoria = font.render("Você venceu!", True, (0, 255, 0))
+            screen.blit(texto_vitoria, (350, 280))
+            pygame.display.flip()
+            pygame.time.delay(3000)
+            reiniciar_jogo()
 
     pygame.display.flip()
     clock.tick(60)
